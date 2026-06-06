@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DivToVid — Divs to Vids Engine
 
-## Getting Started
+Premium **Multimodal Video Crawler & AI Filtering Machine**. Enter a semantic keyword, and DivToVid discovers videos across YouTube, TikTok, and X (Twitter), then uses **Google Gemini Flash** to surface the **Top 3 most accurate matches** with a direct download option powered by `yt-dlp`.
 
-First, run the development server:
+## Stack
+
+- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS, Shadcn/ui
+- **AI Layer**: Google Gemini 2.0 Flash (JSON-mode structured ranking)
+- **Discovery**: YouTube Data API v3 + Mock scrapers for TikTok & X
+- **Download**: yt-dlp command generation (server-side)
+
+## Setup
 
 ```bash
+npm install
+# Edit .env.local with your API keys
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Description |
+|---|---|
+| `YOUTUBE_API_KEY` | Google YouTube Data API v3 key |
+| `GEMINI_API_KEY` | Google Gemini API key (Gemini 2.0 Flash) |
 
-## Learn More
+Both keys fall back gracefully to mock data if missing — fully functional for demo without keys.
 
-To learn more about Next.js, take a look at the following resources:
+## Pipeline
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+Keyword → [YouTube + TikTok Mock + Twitter Mock] → 15 candidates
+       → Gemini Flash semantic scoring (0-100)
+       → Top 3 results with yt-dlp download
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Routes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/scan` | Full pipeline → top 3 ranked videos |
+| POST | `/api/download` | yt-dlp command generation for a URL |
