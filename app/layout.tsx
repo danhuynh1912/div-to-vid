@@ -1,16 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Outfit } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-outfit",
 });
 
 export const metadata: Metadata = {
@@ -33,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-[#080c14] text-slate-100 antialiased`}
+        className={`${outfit.variable} font-sans bg-[#0b1220] text-slate-100 antialiased`}
       >
         {children}
         <Toaster

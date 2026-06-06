@@ -16,6 +16,17 @@ const VIDEO_DOMAINS = [
   "rumble.com",
 ];
 
+function extractYouTubeThumbnail(url: string): string | undefined {
+  try {
+    const u = new URL(url);
+    let videoId: string | null = null;
+    if (u.hostname.includes("youtube.com")) videoId = u.searchParams.get("v");
+    else if (u.hostname === "youtu.be") videoId = u.pathname.slice(1);
+    if (videoId) return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  } catch {}
+  return undefined;
+}
+
 export function isVideoUrl(url: string): boolean {
   try {
     const hostname = new URL(url).hostname.replace("www.", "");
@@ -179,6 +190,97 @@ export async function searchBrave(keyword: string, maxResults = 10): Promise<Vid
   }
 }
 
+// ─── Serper.dev ───────────────────────────────────────────────────────────────
+// Free tier: 2,500 searches (one-time)
+// Get key: serper.dev → Dashboard → API Key
+// Set SERPER_API_KEY in .env.local
+
+export async function searchSerper(keyword: string, maxResults = 100): Promise<VideoCandidate[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+
+  if (!apiKey) {
+    console.warn("[Serper] Missing SERPER_API_KEY — skipping");
+    return [];
+  }
+
+  if (!isQuotaAvailable("serper")) {
+    console.warn("[Serper] Quota exhausted — skipping");
+    return [];
+  }
+
+  try {
+    const [videoRes, webRes] = await Promise.allSettled([
+      axios.post("https://google.serper.dev/videos", {
+        q: keyword,
+        num: maxResults,
+        gl: "vn",
+        hl: "vi",
+      }, {
+        headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+        timeout: 8000,
+      }),
+      axios.post("https://google.serper.dev/search", {
+        q: `${keyword} site:tiktok.com OR site:x.com OR site:facebook.com`,
+        num: maxResults,
+        gl: "vn",
+        hl: "vi",
+      }, {
+        headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+        timeout: 8000,
+      }),
+    ]);
+
+    consumeQuota("serper", 2);
+
+    const results: VideoCandidate[] = [];
+    const seen = new Set<string>();
+
+    // Video results
+    if (videoRes.status === "fulfilled") {
+      const items = videoRes.value.data.videos ?? [];
+      items.forEach((item: any, i: number) => {
+        if (seen.has(item.link)) return;
+        seen.add(item.link);
+        results.push({
+          id: `serper_v${i}_${Date.now()}`,
+          title: item.title ?? "Untitled",
+          description: item.snippet ?? "",
+          thumbnail: item.imageUrl ?? extractYouTubeThumbnail(item.link),
+          url: item.link,
+          platform: detectPlatform(item.link),
+          channel: item.channel ?? item.source,
+          publishedAt: item.date ? new Date(item.date).toISOString().slice(0, 10) : undefined,
+        });
+      });
+    }
+
+    // Web results (video platform links)
+    if (webRes.status === "fulfilled") {
+      const items = webRes.value.data.organic ?? [];
+      items.forEach((item: any, i: number) => {
+        if (seen.has(item.link) || !isVideoUrl(item.link)) return;
+        seen.add(item.link);
+        results.push({
+          id: `serper_w${i}_${Date.now()}`,
+          title: item.title ?? "Untitled",
+          description: item.snippet ?? "",
+          thumbnail: item.imageUrl ?? extractYouTubeThumbnail(item.link),
+          url: item.link,
+          platform: detectPlatform(item.link),
+          channel: item.displayedLink,
+          publishedAt: item.date ? new Date(item.date).toISOString().slice(0, 10) : undefined,
+        });
+      });
+    }
+
+    console.log(`[Serper] ${results.length} results`);
+    return results;
+  } catch (err: any) {
+    console.error("[Serper] Error:", err.message);
+    return [];
+  }
+}
+
 // ─── SerpAPI ──────────────────────────────────────────────────────────────────
 // Paid service with free trial (100 searches)
 // Get key: serpapi.com → Dashboard
@@ -262,7 +364,7 @@ export async function searchSerpAPI(keyword: string, maxResults = 10): Promise<V
 
 export interface WebSearchResult extends VideoCandidate {
   isVideoUrl?: boolean;
-  searchSource: "google_cse" | "brave" | "serpapi";
+  searchSource: "google_cse" | "serper" | "brave" | "serpapi";
 }
 
 export async function searchWeb(keyword: string): Promise<WebSearchResult[]> {
@@ -271,42 +373,68 @@ export async function searchWeb(keyword: string): Promise<WebSearchResult[]> {
 
   const isReal = (v?: string) => !!v && !v.startsWith("your_");
 
-  // Run all configured + available providers in parallel (free first, paid last)
-  const [cseResults, braveResults, serpResults] = await Promise.allSettled([
-    isQuotaAvailable("google_custom_search") && isReal(process.env.GOOGLE_CSE_CX)
-      ? searchGoogleCSE(keyword)
-      : Promise.resolve([] as VideoCandidate[]),
+  // Sequential fallback: CSE → Brave → SerpAPI
+  // Next provider only called if previous returned 0 results — saves paid quota.
+  const PROVIDERS: Array<{
+    name: string;
+    source: WebSearchResult["searchSource"];
+    enabled: () => boolean;
+    fetch: () => Promise<VideoCandidate[]>;
+  }> = [
+    {
+      name: "GoogleCSE",
+      source: "google_cse",
+      enabled: () => isQuotaAvailable("google_custom_search") && isReal(process.env.GOOGLE_CSE_CX),
+      fetch: () => searchGoogleCSE(keyword),
+    },
+    {
+      name: "Serper",
+      source: "serper" as any,
+      enabled: () => isQuotaAvailable("serper") && isReal(process.env.SERPER_API_KEY),
+      fetch: () => searchSerper(keyword),
+    },
+    {
+      name: "Brave",
+      source: "brave",
+      enabled: () => isQuotaAvailable("brave_search") && isReal(process.env.BRAVE_API_KEY),
+      fetch: () => searchBrave(keyword),
+    },
+    {
+      name: "SerpAPI",
+      source: "serpapi",
+      enabled: () => isQuotaAvailable("serpapi") && isReal(process.env.SERPAPI_KEY),
+      fetch: () => searchSerpAPI(keyword),
+    },
+  ];
 
-    isQuotaAvailable("brave_search") && isReal(process.env.BRAVE_API_KEY)
-      ? searchBrave(keyword)
-      : Promise.resolve([] as VideoCandidate[]),
+  for (const provider of PROVIDERS) {
+    if (!provider.enabled()) {
+      console.log(`[WebSearch] ${provider.name} — skipped (not configured or quota exhausted)`);
+      continue;
+    }
 
-    isQuotaAvailable("serpapi") && isReal(process.env.SERPAPI_KEY)
-      ? searchSerpAPI(keyword)
-      : Promise.resolve([] as VideoCandidate[]),
-  ]);
-
-  if (cseResults.status === "fulfilled" && cseResults.value.length > 0) {
-    cseResults.value.forEach((v) => results.push({ ...v, searchSource: "google_cse" }));
-    providersUsed.push("GoogleCSE");
-  }
-  if (braveResults.status === "fulfilled" && braveResults.value.length > 0) {
-    braveResults.value.forEach((v) => results.push({ ...v, searchSource: "brave" }));
-    providersUsed.push("Brave");
-  }
-  if (serpResults.status === "fulfilled" && serpResults.value.length > 0) {
-    serpResults.value.forEach((v) => results.push({ ...v, searchSource: "serpapi" }));
-    providersUsed.push("SerpAPI");
+    try {
+      const items = await provider.fetch();
+      if (items.length > 0) {
+        items.forEach((v) => results.push({ ...v, searchSource: provider.source }));
+        providersUsed.push(`${provider.name}(${items.length})`);
+        console.log(`[WebSearch] ${provider.name} returned ${items.length} results — stopping chain`);
+        break; // Got results — no need to call next provider
+      }
+      console.warn(`[WebSearch] ${provider.name} returned 0 results — trying next provider`);
+    } catch (err: any) {
+      console.error(`[WebSearch] ${provider.name} error: ${err.message} — trying next provider`);
+    }
   }
 
   if (providersUsed.length > 0) {
-    console.log(`[WebSearch] Providers used: ${providersUsed.join(", ")} — ${results.length} results`);
+    console.log(`[WebSearch] Used: ${providersUsed.join(", ")} — ${results.length} total`);
   } else {
-    console.warn("[WebSearch] No web search providers configured — web results will be empty");
+    console.warn("[WebSearch] All providers exhausted or unconfigured — web results empty");
   }
 
   // Sort: video URLs first, then by source priority
-  const sourcePriority = { google_cse: 0, brave: 1, serpapi: 2 };
+  const sourcePriority = { google_cse: 0, serper: 1, brave: 2, serpapi: 3 };
   results.sort((a, b) => {
     const aIsVideo = isVideoUrl(a.url) ? 0 : 1;
     const bIsVideo = isVideoUrl(b.url) ? 0 : 1;

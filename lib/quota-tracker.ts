@@ -9,13 +9,15 @@ const QUOTA_FILE = path.join(process.cwd(), ".quota-usage.json");
 interface QuotaState {
   google_custom_search: { used: number; resetDate: string };
   brave_search: { used: number; resetDate: string };
+  serper: { used: number; resetDate: string };
   serpapi: { used: number; resetDate: string };
 }
 
 const DAILY_LIMITS = {
   google_custom_search: 100,   // free tier: 100/day
-  brave_search: 2000,          // free tier: 2000/month (we track monthly as daily avg ~66)
-  serpapi: 100,                // free trial: 100/month
+  brave_search: 2000,          // free tier: 2000/month
+  serper: 2500,                // free tier: 2500 total (one-time)
+  serpapi: 100,                // free trial: 100 total (one-time)
 };
 
 function todayUTC(): string {
@@ -36,6 +38,7 @@ function loadState(): QuotaState {
   return {
     google_custom_search: { used: 0, resetDate: todayUTC() },
     brave_search: { used: 0, resetDate: thisMonthUTC() },
+    serper: { used: 0, resetDate: thisMonthUTC() },
     serpapi: { used: 0, resetDate: thisMonthUTC() },
   };
 }

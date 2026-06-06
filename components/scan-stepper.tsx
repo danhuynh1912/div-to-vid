@@ -1,26 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle, Loader2, Globe, Brain, Sparkles } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { Check } from "lucide-react";
+import { Globe, Brain, Sparkles } from "lucide-react";
 
 const STEPS = [
   {
     icon: Globe,
-    label: "DivToVid Engine searching internet platforms…",
-    sub: "Querying YouTube · TikTok · X (Twitter)",
+    label: "Searching internet platforms",
+    sub: "YouTube · TikTok · X (Twitter)",
     duration: 2200,
   },
   {
     icon: Brain,
-    label: "Activating AI Brain to filter content…",
-    sub: "Gemini Flash multimodal semantic analysis",
+    label: "AI filtering content",
+    sub: "Gemini Flash semantic analysis",
     duration: 2800,
   },
   {
     icon: Sparkles,
-    label: "Extracting Top 3 Ultimate Matches…",
-    sub: "Ranking by accuracy score · Preparing results",
+    label: "Ranking top matches",
+    sub: "Scoring by relevance · Preparing results",
     duration: 1200,
   },
 ];
@@ -38,10 +38,7 @@ export function ScanStepper() {
       elapsed += 80;
       setProgress(Math.min((elapsed / totalDuration) * 100, 95));
 
-      const cumulative = STEPS.slice(0, step + 1).reduce(
-        (a, s) => a + s.duration,
-        0
-      );
+      const cumulative = STEPS.slice(0, step + 1).reduce((a, s) => a + s.duration, 0);
       if (elapsed >= cumulative && step < STEPS.length - 1) {
         step++;
         setActiveStep(step);
@@ -52,62 +49,66 @@ export function ScanStepper() {
   }, []);
 
   return (
-    <div className="w-full max-w-xl mx-auto space-y-6 py-8">
-      <Progress
-        value={progress}
-        className="h-1.5 bg-slate-800 [&>div]:bg-gradient-to-r [&>div]:from-cyan-500 [&>div]:to-blue-500"
-      />
+    <div className="w-full max-w-sm mx-auto py-8 space-y-0">
+      {STEPS.map((step, i) => {
+        const StepIcon = step.icon;
+        const isDone = i < activeStep;
+        const isActive = i === activeStep;
+        const isPending = !isDone && !isActive;
 
-      <div className="space-y-3">
-        {STEPS.map((step, i) => {
-          const StepIcon = step.icon;
-          const isDone = i < activeStep;
-          const isActive = i === activeStep;
-
-          return (
-            <div
-              key={i}
-              className={`
-                flex items-center gap-4 p-4 rounded-xl border transition-all duration-500
-                ${isDone
-                  ? "border-emerald-500/30 bg-emerald-500/5"
-                  : isActive
-                  ? "border-cyan-500/40 bg-cyan-500/5 shadow-sm shadow-cyan-500/10"
-                  : "border-slate-800 bg-slate-900/30 opacity-40"
-                }
-              `}
-            >
+        return (
+          <div key={i} className="flex gap-5">
+            {/* Left: connector line + dot */}
+            <div className="flex flex-col items-center">
               <div
                 className={`
-                  w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                  ${isDone ? "bg-emerald-500/20" : isActive ? "bg-cyan-500/20" : "bg-slate-800"}
+                  w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500
+                  ${isDone ? "bg-[#1a3d2e]" : isActive ? "bg-[#223d56]/60" : "bg-white/5"}
                 `}
               >
                 {isDone ? (
-                  <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  <Check className="w-3.5 h-3.5 text-[#4db88a]" strokeWidth={2.5} />
                 ) : isActive ? (
-                  <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                  <span className="w-2 h-2 rounded-full bg-[#7eb8d4] animate-pulse" />
                 ) : (
-                  <StepIcon className="w-5 h-5 text-slate-600" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/15" />
                 )}
               </div>
-              <div className="min-w-0">
-                <p
-                  className={`text-sm font-semibold ${
-                    isDone
-                      ? "text-emerald-400"
-                      : isActive
-                      ? "text-cyan-300"
-                      : "text-slate-600"
+              {i < STEPS.length - 1 && (
+                <div
+                  className={`w-px flex-1 my-1 transition-all duration-700 ${
+                    isDone ? "bg-[#4db88a]/30" : "bg-white/8"
                   }`}
-                >
-                  [{i + 1}] {step.label}
-                </p>
-                <p className="text-xs text-slate-600 mt-0.5">{step.sub}</p>
-              </div>
+                  style={{ minHeight: "28px" }}
+                />
+              )}
             </div>
-          );
-        })}
+
+            {/* Right: text */}
+            <div className={`pb-7 transition-all duration-500 ${isPending ? "opacity-25" : "opacity-100"}`}>
+              <p
+                className={`text-sm font-medium tracking-wide transition-colors duration-500 ${
+                  isDone ? "text-[#4db88a]" : isActive ? "text-white" : "text-white/50"
+                }`}
+              >
+                {step.label}
+              </p>
+              <p className={`text-xs mt-0.5 transition-colors duration-500 ${
+                isDone ? "text-[#4db88a]/50" : isActive ? "text-white/35" : "text-white/20"
+              }`}>
+                {step.sub}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Progress bar */}
+      <div className="mt-2 h-px w-full bg-white/8 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-[#4a7fa5] rounded-full transition-all duration-150"
+          style={{ width: `${progress}%` }}
+        />
       </div>
     </div>
   );

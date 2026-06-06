@@ -73,10 +73,9 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
           disabled={!value.trim() || isLoading}
           className="
             h-14 px-7 rounded-xl font-semibold text-sm tracking-wide
-            bg-gradient-to-r from-cyan-500 to-blue-600
-            hover:from-cyan-400 hover:to-blue-500
+            bg-white/10 hover:bg-white/15
             disabled:opacity-40 disabled:cursor-not-allowed
-            text-white shadow-lg shadow-cyan-500/20
+            text-white border border-white/10
             transition-all duration-200
             flex items-center gap-2
           "

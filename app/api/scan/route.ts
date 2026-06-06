@@ -13,6 +13,7 @@ export interface ScanResponse {
     tiktok_mock: number;
     twitter_mock: number;
     web_google_cse: number;
+    web_serper: number;
     web_brave: number;
     web_serpapi: number;
   };
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest) {
         tiktok_mock:    tiktok.length,
         twitter_mock:   twitter.length,
         web_google_cse: webByCse.length,
+        web_serper:     web.filter((v: any) => v.searchSource === "serper").length,
         web_brave:      webByBrave.length,
         web_serpapi:    webBySerp.length,
       },

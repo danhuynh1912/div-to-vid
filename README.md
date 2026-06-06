@@ -1,44 +1,62 @@
-# DivToVid — Divs to Vids Engine
+# DivToVid — AI Video Search
 
-Premium **Multimodal Video Crawler & AI Filtering Machine**. Enter a semantic keyword, and DivToVid discovers videos across YouTube, TikTok, and X (Twitter), then uses **Google Gemini Flash** to surface the **Top 3 most accurate matches** with a direct download option powered by `yt-dlp`.
+Search any topic and let AI do the rest. DivToVid scans YouTube and the open web, then uses Gemini to rank every result by relevance — surfacing the most accurate videos across any keyword.
 
 ## Stack
 
-- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS, Shadcn/ui
-- **AI Layer**: Google Gemini 2.0 Flash (JSON-mode structured ranking)
-- **Discovery**: YouTube Data API v3 + Mock scrapers for TikTok & X
-- **Download**: yt-dlp command generation (server-side)
+- **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, Shadcn/ui
+- **AI Ranking:** Google Gemini Flash (structured JSON output)
+- **Video Sources:** YouTube Data API v3 · Serper.dev · SerpAPI (fallback)
+- **Download:** yt-dlp command generation
 
-## Setup
+## Getting started
 
 ```bash
 npm install
-# Edit .env.local with your API keys
+cp .env.local.example .env.local  # fill in your keys
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+## Environment variables
 
-## Environment Variables
+```env
+# Required
+YOUTUBE_API_KEY=       # Google Cloud → YouTube Data API v3
+GEMINI_API_KEY=        # Google AI Studio → Gemini Flash
 
-| Variable | Description |
-|---|---|
-| `YOUTUBE_API_KEY` | Google YouTube Data API v3 key |
-| `GEMINI_API_KEY` | Google Gemini API key (Gemini 2.0 Flash) |
+# Web search (priority order)
+SERPER_API_KEY=        # serper.dev — 2,500 free searches
+SERPAPI_KEY=           # serpapi.com — 100 free trial searches (fallback)
 
-Both keys fall back gracefully to mock data if missing — fully functional for demo without keys.
+# Optional
+USE_MOCK_FALLBACK=false   # true = fall back to mock data on API errors
+GOOGLE_CSE_CX=            # Google Custom Search Engine ID
+GOOGLE_CSE_API_KEY=       # API key for CSE
+BRAVE_API_KEY=            # Brave Search API (paid)
+```
 
-## Pipeline
+All keys fall back gracefully — the app runs without any web search keys (YouTube only).
+
+## How it works
 
 ```
-Keyword → [YouTube + TikTok Mock + Twitter Mock] → 15 candidates
-       → Gemini Flash semantic scoring (0-100)
-       → Top 3 results with yt-dlp download
+Keyword
+  ↓
+YouTube API + Web Search (Serper → SerpAPI)   ← in parallel
+  ↓
+Deduplicate by URL
+  ↓
+Gemini Flash semantic ranking (score 0–100)
+  ↓
+Sort: web results first, YouTube last
+  ↓
+Return top 50 ranked results
 ```
 
-## API Routes
+## API routes
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/scan` | Full pipeline → top 3 ranked videos |
-| POST | `/api/download` | yt-dlp command generation for a URL |
+| `POST` | `/api/scan` | Run the full pipeline, return ranked videos |
+| `POST` | `/api/download` | Generate a yt-dlp download command for a URL |
+| `GET` | `/api/quota` | View current quota usage per provider |
